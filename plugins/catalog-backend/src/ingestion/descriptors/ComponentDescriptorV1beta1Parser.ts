@@ -19,9 +19,6 @@ import { ParserError, ParserOutput } from '../types';
 import { DescriptorEnvelope, KindParser } from './types';
 
 export interface ComponentDescriptorV1beta1 extends DescriptorEnvelope {
-  metadata: {
-    name: string;
-  };
   spec: {
     type: string;
   };

@@ -17,35 +17,101 @@
 import * as Knex from 'knex';
 
 export async function up(knex: Knex): Promise<any> {
-  return knex.schema
-    .createTable('locations', table => {
-      table.comment(
-        'Registered locations that shall be contiuously scanned for catalog item updates',
-      );
-      table.uuid('id').primary().comment('Auto-generated ID of the location');
-      table.string('type').notNullable().comment('The type of location');
-      table
-        .string('target')
-        .notNullable()
-        .comment('The actual target of the location');
-    })
-    .createTable('components', table => {
-      table.comment('All components currently stored in the catalog');
-      table.uuid('id').primary().comment('Auto-generated ID of the component');
-      table
-        .uuid('locationId')
-        .references('id')
-        .inTable('locations')
-        .nullable()
-        .comment('The location that originated the component');
-      table
-        .string('name')
-        .unique()
-        .notNullable()
-        .comment('The external name of the component, as used in references');
-    });
+  return (
+    knex.schema
+      //
+      // locations
+      //
+      .createTable('locations', table => {
+        table.comment(
+          'Registered locations that shall be contiuously scanned for catalog item updates',
+        );
+        table.uuid('id').primary().comment('Auto-generated ID of the location');
+        table.string('type').notNullable().comment('The type of location');
+        table
+          .string('target')
+          .notNullable()
+          .comment('The actual target of the location');
+      })
+      //
+      // entities
+      //
+      .createTable('entities', table => {
+        table.comment('All entities stored in the system');
+        table.uuid('id').primary().comment('Auto-generated ID of the entity');
+        table
+          .integer('generation')
+          .unsigned()
+          .notNullable()
+          .comment(
+            'Generation number that changes each time the entity is updated',
+          );
+        table
+          .uuid('location_id')
+          .references('id')
+          .inTable('locations')
+          .nullable()
+          .comment('The location that originated the component');
+        table
+          .string('api_version')
+          .notNullable()
+          .comment('The apiVersion field of the entity');
+        table
+          .string('kind')
+          .notNullable()
+          .comment('The kind field of the entity');
+        table
+          .string('name')
+          .nullable()
+          .comment('The metadata.name field of the entity');
+        table
+          .string('namespace')
+          .nullable()
+          .comment('The metadata.namespace field of the entity');
+        table
+          .string('metadata')
+          .nullable()
+          .comment('The entire metadata JSON blob of the entity');
+        table
+          .string('spec')
+          .nullable()
+          .comment('The entire spec JSON blob of the entity');
+      })
+      .alterTable('entities', table => {
+        // https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.18/#objectmeta-v1-meta
+        table.unique(['name', 'namespace'], 'entities_unique_name');
+      })
+      //
+      // entities_search
+      //
+      .createTable('entities_search', table => {
+        table.comment(
+          'Flattened key-values from the entities, used for quick filtering',
+        );
+        table
+          .uuid('entity_id')
+          .references('id')
+          .inTable('entities')
+          .onDelete('CASCADE')
+          .comment('The entity that matches this key/value');
+        table
+          .string('key')
+          .notNullable()
+          .comment('A key that occurs in the entity');
+        table
+          .string('value')
+          .nullable()
+          .comment('The corresponding value to match on');
+      })
+  );
 }
 
 export async function down(knex: Knex): Promise<any> {
-  return knex.schema.dropTable('components').dropTable('locations');
+  return knex.schema
+    .dropTable('entities_search')
+    .alterTable('entities', table => {
+      table.dropUnique([], 'entities_unique_name');
+    })
+    .dropTable('entities')
+    .dropTable('locations');
 }

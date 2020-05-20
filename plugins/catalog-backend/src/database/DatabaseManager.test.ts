@@ -24,7 +24,7 @@ import {
 } from '../ingestion';
 import { Database } from './Database';
 import { DatabaseManager } from './DatabaseManager';
-import { DatabaseLocation, DatabaseLocationUpdateLogStatus } from './types';
+import { DatabaseLocationUpdateLogStatus, DbLocationsRow } from './types';
 
 describe('DatabaseManager', () => {
   const logger = winston.createLogger({
@@ -53,14 +53,14 @@ describe('DatabaseManager', () => {
 
     it('can update a single location', async () => {
       const db = ({
-        addOrUpdateComponent: jest.fn(),
+        addEntity: jest.fn(),
         locations: jest.fn(() =>
           Promise.resolve([
             {
               id: '123',
               type: 'some',
               target: 'thing',
-            } as DatabaseLocation,
+            } as DbLocationsRow,
           ]),
         ),
         addLocationUpdateLogEvent: jest.fn(),
@@ -86,8 +86,8 @@ describe('DatabaseManager', () => {
       ).resolves.toBeUndefined();
       expect(reader.read).toHaveBeenCalledTimes(1);
       expect(reader.read).toHaveBeenNthCalledWith(1, 'some', 'thing');
-      expect(db.addOrUpdateComponent).toHaveBeenCalledTimes(1);
-      expect(db.addOrUpdateComponent).toHaveBeenNthCalledWith(
+      expect(db.addEntity).toHaveBeenCalledTimes(1);
+      expect(db.addEntity).toHaveBeenNthCalledWith(
         1,
         expect.objectContaining({ locationId: '123', name: 'c1' }),
       );
@@ -102,7 +102,7 @@ describe('DatabaseManager', () => {
               id: '123',
               type: 'some',
               target: 'thing',
-            } as DatabaseLocation,
+            } as DbLocationsRow,
           ]),
         ),
         addLocationUpdateLogEvent: jest.fn(),
@@ -151,7 +151,7 @@ describe('DatabaseManager', () => {
               id: '123',
               type: 'some',
               target: 'thing',
-            } as DatabaseLocation,
+            } as DbLocationsRow,
           ]),
         ),
         addLocationUpdateLogEvent: jest.fn(),
@@ -201,7 +201,7 @@ describe('DatabaseManager', () => {
               id: '123',
               type: 'some',
               target: 'thing',
-            } as DatabaseLocation,
+            } as DbLocationsRow,
           ]),
         ),
         addLocationUpdateLogEvent: jest.fn(),

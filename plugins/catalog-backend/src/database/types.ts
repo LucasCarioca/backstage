@@ -16,25 +16,25 @@
 
 import * as yup from 'yup';
 
-export type DatabaseComponent = {
+export type DbEntitiesRow = {
   id: string;
-  locationId?: string;
-  name: string;
+  generation: number;
+  location_id: string | null;
+  api_version: string;
+  kind: string;
+  name: string | null;
+  namespace: string | null;
+  metadata: string | null;
+  spec: string | null;
 };
 
-export type AddDatabaseComponent = {
-  locationId?: string;
-  name: string;
+export type DbEntitiesSearchRow = {
+  entity_id: string;
+  key: string;
+  value: string | null;
 };
 
-export const addDatabaseComponentSchema: yup.Schema<AddDatabaseComponent> = yup
-  .object({
-    locationId: yup.string().optional(),
-    name: yup.string().required(),
-  })
-  .noUnknown();
-
-export type DatabaseLocation = {
+export type DbLocationsRow = {
   id: string;
   type: string;
   target: string;

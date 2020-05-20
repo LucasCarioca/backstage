@@ -15,11 +15,13 @@
  */
 
 import Knex from 'knex';
+import lodash from 'lodash';
 import path from 'path';
 import { Logger } from 'winston';
 import { DescriptorParser, LocationReader, ParserError } from '../ingestion';
 import { Database } from './Database';
-import { AddDatabaseComponent, DatabaseLocationUpdateLogStatus } from './types';
+import { DatabaseLocationUpdateLogStatus } from './types';
+import { DescriptorEnvelope } from '../ingestion/descriptors/types';
 
 export class DatabaseManager {
   public static async createDatabase(database: Knex): Promise<Database> {
@@ -66,7 +68,7 @@ export class DatabaseManager {
     for (const location of locations) {
       try {
         logger.debug(
-          `Refreshing location ${location.id} type "${location.type}" target "${location.target}"`,
+          `Refreshing location id="${location.id}" type="${location.type}" target="${location.target}"`,
         );
 
         const readerOutput = await reader.read(location.type, location.target);
@@ -76,20 +78,19 @@ export class DatabaseManager {
             logger.debug(readerItem.error);
             continue;
           }
-          let parserOutput;
+
           try {
-            parserOutput = await parser.parse(readerItem.data);
+            const parserOutput = await parser.parse(readerItem.data);
             if (parserOutput.kind === 'Component') {
-              const component = parserOutput.component;
-              const dbc: AddDatabaseComponent = {
-                locationId: location.id,
-                name: component.metadata.name,
-              };
-              await database.addOrUpdateComponent(dbc);
+              await DatabaseManager.refreshSingleEntity(
+                database,
+                location.id,
+                parserOutput.component,
+              );
               await DatabaseManager.logUpdateSuccess(
                 database,
                 location.id,
-                component.metadata.name,
+                parserOutput.component.metadata!.name,
               );
             }
           } catch (error) {
@@ -111,5 +112,60 @@ export class DatabaseManager {
         await DatabaseManager.logUpdateFailure(database, location.id, error);
       }
     }
+  }
+
+  private static async refreshSingleEntity(
+    database: Database,
+    locationId: string,
+    entity: DescriptorEnvelope,
+  ): Promise<void> {
+    const { name, namespace } = entity.metadata || {};
+    if (!name) {
+      throw new Error('Entities without names are not yet supported');
+    }
+
+    await database.transaction(async tx => {
+      const previous = await database.entity(tx, name, namespace);
+      if (previous) {
+        const merged = DatabaseManager.mergeEntities(previous.entity, entity);
+        await database.updateEntity(tx, {
+          locationId: locationId,
+          entity: merged,
+        });
+      } else {
+        await database.addEntity(tx, { locationId: locationId, entity });
+      }
+    });
+  }
+
+  private static mergeEntities(
+    base: DescriptorEnvelope,
+    added: DescriptorEnvelope,
+  ): DescriptorEnvelope {
+    let result = lodash.cloneDeep(added);
+
+    // The added thing is not supposed to have a uid or generation, but we
+    // want to keep the ones from the original to make updates work
+    result = lodash.merge(result, {
+      metadata: {
+        uid: base.metadata?.uid,
+        generation: base.metadata?.generation,
+      },
+    });
+
+    // Annotations get special treatment; we want to merge the original ones
+    // with the new ones
+    if (base.metadata?.annotations) {
+      result = lodash.merge(
+        {
+          metadata: {
+            annotations: base.metadata.annotations,
+          },
+        },
+        result,
+      );
+    }
+
+    return result;
   }
 }
